@@ -17,6 +17,8 @@ mkdir -p "$PERF_DIR"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 BASE_NAME="main_test_${TIMESTAMP}"
 
+LOG_FILE="run_$(date +%Y%m%d_%H%M%S).log"
+
 echo "Profiling results will be saved as: $BASE_NAME"
 
 # Run NVIDIA Compute Utility (NCU)
@@ -24,14 +26,16 @@ echo "========== Start NVIDIA Compute Utility (NCU) Analysis =========="
 PATH=/usr/local/cuda/bin:$PATH \
 LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH \
 ncu --cache-control none --clock-control none --metrics gpu__time_duration.sum "$EXE_DIR"
+# | tee "$PERF_DIR/$LOG_FILE"
 echo "========== End NCU Analysis =========="
 
 # Run Nsight Systems profiler (NSYS)
 echo "========== Start Nsight Systems (NSYS) Profiling =========="
 nsys profile -o "$PERF_DIR/$BASE_NAME" "$EXE_DIR"
+# | tee -a "$PERF_DIR/$LOG_FILE"
 echo "========== End NSYS Profiling =========="
 
 # Generate summary stats from the NSYS report
 echo "========== Start NSYS Stats Report =========="
-nsys stats "$PERF_DIR/$BASE_NAME.nsys-rep"
+nsys stats "$PERF_DIR/$BASE_NAME.nsys-rep" 2>/dev/null
 echo "========== End NSYS Stats Report =========="
