@@ -4,7 +4,7 @@ BUILD_DIR = ../../build
 COMPILER = nvcc
 SRC_DIR = ../../src/matmul
 INCLUDE_DIR = ../include
-COMPILE_FLAG = -I ../include
+COMPILE_FLAG = -I ../include -gencode arch=compute_89,code=sm_89
 
 # Find all .cu files in the source directory
 SRCS = $(wildcard $(SRC_DIR)/*.cu)
