@@ -7,7 +7,7 @@ BUILD_DIR = ../build
 LOG_DIR = ../log
 NVCC = nvcc
 SUB_DIRS = $(SRC_DIR)/matmul
-COMPILE_FLAG = -I $(SRC_DIR)/include
+COMPILE_FLAG = -I $(SRC_DIR)/include -gencode arch=compute_89,code=sm_89
 
 SCRIPT_DIR = ../script
 EXE_PATH = $(BUILD_DIR)/$(TARGET)
