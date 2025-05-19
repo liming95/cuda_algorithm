@@ -7,7 +7,8 @@ INCLUDE_DIR = ../include
 COMPILE_FLAG = -I ../include -gencode arch=compute_89,code=sm_89
 
 # Find all .cu files in the source directory
-SRCS = $(wildcard $(SRC_DIR)/*.cu)
+#SRCS = $(wildcard $(SRC_DIR)/*.cu)
+SRCS = $(SRC_DIR)/matrix_mul.cu
 
 # Generate object files list
 OBJS = $(patsubst $(SRC_DIR)/%.cu, $(BUILD_DIR)/%.o, $(SRCS))
