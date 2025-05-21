@@ -101,5 +101,5 @@ void matmul_tiling_bench(nvbench::state &state){
 }
 
 NVBENCH_BENCH(matmul_tiling_bench)
-  .add_int64_power_of_two_axis("MatrixDim", nvbench::range(5, 10, 1))
-  .add_int64_power_of_two_axis("BlockDim", nvbench::range(3, 5, 1));
+  .add_int64_power_of_two_axis("MatrixDim", nvbench::range(bench_para.min_matrix_dim, bench_para.max_matrix_dim, bench_para.strip_mat))
+  .add_int64_power_of_two_axis("BlockDim", nvbench::range(bench_para.min_block_dim, bench_para.max_block_dim, bench_para.strip_block));

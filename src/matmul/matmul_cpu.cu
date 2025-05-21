@@ -43,5 +43,5 @@ void matmul_cpu_benchmark(nvbench::state &state)
   });
 }
 NVBENCH_BENCH(matmul_cpu_benchmark)
-  .add_int64_power_of_two_axis("MatrixDim", nvbench::range(5, 10, 1))
+  .add_int64_power_of_two_axis("MatrixDim", nvbench::range(bench_para.min_matrix_dim, bench_para.max_matrix_dim, bench_para.strip_mat))
   .set_is_cpu_only(true);

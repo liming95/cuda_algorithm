@@ -5,6 +5,7 @@ set(matmul_srcs
   matmul_prefetch.cu
   matmul_bank.cu
   matmul_mul_tiling.cu
+  matmul_tiling_register.cu
 )
 
 # Metatarget for all matmuls:
