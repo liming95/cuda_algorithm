@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 # Set directories
 BUILD_DIR=./build
@@ -7,18 +8,24 @@ LOG_DIR=./log/report
 REPORT_DIR="$LOG_DIR/$(date +%Y%m%d)"
 PERF_LOG_DIR=./log/ncu
 PROFILE_TOOL=./script/ncu.sh
+PERF_FLAG=()
+TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
+PERF_DIR="${PERF_LOG_DIR}/${TIMESTAMP}"
 
-# Show help if no arguments
-if [ $# -lt 1 ]; then
+usage() {
   echo "Usage: $0 [build|exec|perf] [keyword]"
   echo "  build           Configure and build the project"
   echo "  exec [keyword]  Run executables whose names contain [keyword]"
   echo "  perf [keyword]  Profile executables whose names contain [keyword]"
   exit 1
+}
+
+if [ $# -lt 1 ]; then
+  usage
 fi
 
 MODE="$1"
-FILTER_KEYWORD="$2"
+FILTER_KEYWORD="${2:-}"
 
 if [ "$MODE" == "build" ]; then
   if [ -d "$BUILD_DIR" ]; then
@@ -33,6 +40,11 @@ if [ "$MODE" == "build" ]; then
   cd ..
 
 elif [ "$MODE" == "exec" ]; then
+  if [ ! -d "$EXE_DIR" ]; then
+    echo "Executable directory $EXE_DIR does not exist."
+    exit 1
+  fi
+
   mkdir -p "$REPORT_DIR"
   echo "Running executables in $EXE_DIR matching *$FILTER_KEYWORD*"
 
@@ -47,7 +59,17 @@ elif [ "$MODE" == "exec" ]; then
   done
 
 elif [ "$MODE" == "perf" ]; then
-  mkdir -p "$PERF_LOG_DIR"
+  if [ ! -d "$EXE_DIR" ]; then
+    echo "Executable directory $EXE_DIR does not exist."
+    exit 1
+  fi
+
+  if [ ! -x "$PROFILE_TOOL" ]; then
+    echo "Profile tool $PROFILE_TOOL not found or not executable."
+    exit 1
+  fi
+
+  mkdir -p "$PERF_DIR"
   echo "Profiling executables in $EXE_DIR matching *$FILTER_KEYWORD*"
 
   for exe_file in "$EXE_DIR"/*; do
@@ -55,12 +77,12 @@ elif [ "$MODE" == "perf" ]; then
       exe_name=$(basename "$exe_file")
       if [[ -z "$FILTER_KEYWORD" || "$exe_name" == *"$FILTER_KEYWORD"* ]]; then
         echo "Profiling $exe_name"
-        "$PROFILE_TOOL" "$exe_file"
+        "$PROFILE_TOOL" "$PERF_DIR" "$exe_file" "${PERF_FLAG[@]}"
       fi
     fi
   done
 
 else
   echo "Unknown mode: $MODE"
-  exit 1
+  usage
 fi

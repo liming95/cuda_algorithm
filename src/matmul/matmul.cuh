@@ -11,10 +11,10 @@ struct {
     int strip_mat;
     int strip_block;
 } bench_para = {
-    10, // max_matrix_dim 2^10
-    5,  // min_matrix_dim 2^5
-    5,  // max_block_dim  2^5
-    3,  // min_block_dim  2^3
+    9, // max_matrix_dim 2^10
+    9,  // min_matrix_dim 2^5
+    4,  // max_block_dim  2^5
+    4,  // min_block_dim  2^3
     1,  // strip_mat
     1,  // strip_block
 };

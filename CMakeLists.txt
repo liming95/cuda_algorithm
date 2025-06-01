@@ -14,8 +14,10 @@ message(STATUS "CMAKE_MODULE_PATH: ${CMAKE_MODULE_PATH}")
 
 add_subdirectory(nvbench)
 
-detect_supported_standards(NVBench CXX 17 20)
-detect_supported_standards(NVBench CUDA 17 20)
+#detect_supported_standards(NVBench CXX 17 20)
+#detect_supported_standards(NVBench CUDA 17 20)
+detect_supported_standards(NVBench CXX 17)
+detect_supported_standards(NVBench CUDA 17)
 #set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/nvbench/cmake")
 #include(NVBenchConfigTarget.cmake)
 
