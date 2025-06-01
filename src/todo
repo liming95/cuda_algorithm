@@ -1,0 +1,5 @@
+matmul:
+ 1. using cub
+ 2. register bank conflict
+ 3. how to optimize the performance by modifing the sass
+ 4. CPU and GPU (stream, collaborative)
