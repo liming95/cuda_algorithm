@@ -4,17 +4,9 @@
 #include <vector>
 
 // Build a directed graph in CSR format.
-// offset: start index of neighbors in the endpoints array
-// endpoints: flattened list of destination nodes
-void buildGraphCSR(std::vector<int>& offset, std::vector<int>& endpoints) {
-    offset = {0, 2, 4, 5, 5, 6, 6};
-    endpoints = {
-        1, 2,    // node 0
-        3, 4,    // node 1
-        5,       // node 2
-                 // node 3 has no neighbors
-        5        // node 4
-                 // node 5 has no neighbors
-    };
-}
+// offset: start index of neighbors in the endnodes array
+// endnodes: flattened list of destination nodes
+void buildGraphCSR(std::vector<int>& offset, std::vector<int>& endnodes);
+void buildRandomGraphCSR(std::vector<int>& offset, std::vector<int>& endnodes, int num_nodes, int max_degree);
+void printGraphCSR(const std::vector<int>& offset, const std::vector<int>& endnodes);
 #endif  // GRAPH_UTILS_H

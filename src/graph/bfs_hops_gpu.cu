@@ -30,32 +30,28 @@ __global__ void computeHops_gpu(int* queue_in, int* queue_out, int* offset, int*
     }
 }
 
-std::vector<int> test_bfs_hops_gpu(){
-    // build graph
-    std::vector<int> offset, endnodes;
-    buildGraphCSR(offset, endnodes);
-    int start_node = 0;
-
+std::vector<int> test_bfs_hops_gpu(std::vector<int> offset, std::vector<int> endnodes, int source){
     // build queue
-    int * queue_in, * queue_out;
-    int node_num = offset.size();
+    int * queue_in;
+    // * queue_out;
+    int node_num = offset.size() - 1;
     int edge_num = endnodes.size();
-    int queue_in_num, queue_out_num;
+    int queue_in_num = 0, queue_out_num = 0;
 
     queue_in = new int[node_num];
-    queue_out = new int[node_num];
-    queue_in[0] = start_node;
+    //queue_out = new int[node_num];
+    queue_in[0] = source;
     queue_in_num++;
 
     // initial hops
     std::vector<int> hops(node_num, -1);
-    hops[0] = 0;
+    hops[source] = 0;
 
     // copy to device
     int queue_num_size = sizeof(int);
-    int offset_size = node_num * sizeof(int);
+    int offset_size = offset.size() * sizeof(int);
     int endnodes_size = edge_num * sizeof(int);
-    int queue_size = offset_size;
+    int queue_size = node_num * sizeof(int);
     int hops_size = offset_size;
     int * d_offset, *d_endnodes, *d_queue_in, *d_queue_out, *d_hops, *d_queue_out_num;
 
@@ -71,7 +67,7 @@ std::vector<int> test_bfs_hops_gpu(){
     cudaMemcpy(d_endnodes, endnodes.data(), endnodes_size, cudaMemcpyHostToDevice);
     cudaMemcpy(d_queue_in, queue_in, queue_size, cudaMemcpyHostToDevice);
     cudaMemcpy(d_hops, hops.data(), hops_size, cudaMemcpyHostToDevice);
-    //cudaMemcpy(d_queue_in_num, queue_in_num, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_queue_out_num, &queue_out_num, queue_num_size, cudaMemcpyHostToDevice);
 
     do {
         // block size
@@ -84,13 +80,10 @@ std::vector<int> test_bfs_hops_gpu(){
 
         // kernel launch
         computeHops_gpu<<<blocksPerGrid, threadsPerBlock>>>(d_queue_in, d_queue_out, d_offset, d_endnodes,
-                                                            d_hops, queue_in_num, d_queue_out_num, node_num,
+                                                            d_hops, queue_in_num, d_queue_out_num, offset.size(),
                                                             edge_num);
 
-        cudaError_t err = cudaGetLastError();
-        if (err != cudaSuccess) {
-            std::cerr << "CUDA error: " << cudaGetErrorString(err) << std::endl;
-        }
+        CHECK_CUDA_SYNC("After device synchronize");
 
         // copy queue_out_num to host
         cudaMemcpy(&queue_out_num, d_queue_out_num, queue_num_size, cudaMemcpyDeviceToHost);
@@ -107,6 +100,8 @@ std::vector<int> test_bfs_hops_gpu(){
     // copy hops from device to host
     cudaMemcpy(hops.data(), d_hops, hops_size, cudaMemcpyDeviceToHost);
 
+    //print_hops(source, hops);
+
     cudaFree(d_offset);
     cudaFree(d_endnodes);
     cudaFree(d_queue_in);
@@ -115,5 +110,4 @@ std::vector<int> test_bfs_hops_gpu(){
     cudaFree(d_queue_out_num);
 
     return hops;
-
 }

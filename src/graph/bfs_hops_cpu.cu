@@ -2,11 +2,21 @@
 #include <queue>
 #include <limits>
 #include "bfs_hops.cuh"
-#include "graph_utils.cuh"
 
-std::vector<int> computeHops(int source, const std::vector<int>& offset, const std::vector<int>& endpoints) {
+void print_hops(int source, std::vector<int> hops) {
+    std::cout << "Hops from node " << source << ":\n";
+    for (size_t i = 0; i < hops.size(); ++i) {
+        std::cout << "Node " << i << ": ";
+        if (hops[i] == -1)
+            std::cout << "unreachable\n";
+        else
+            std::cout << hops[i] << "\n";
+    }
+}
+
+std::vector<int> computeHops(int source, const std::vector<int>& offset, const std::vector<int>& endnodes) {
     int n = offset.size() - 1;
-    std::vector<int> hops(n, std::numeric_limits<int>::max());
+    std::vector<int> hops(n, -1);
     std::queue<int> q;
 
     hops[source] = 0;
@@ -15,8 +25,8 @@ std::vector<int> computeHops(int source, const std::vector<int>& offset, const s
     while (!q.empty()) {
         int u = q.front(); q.pop();
         for (int i = offset[u]; i < offset[u + 1]; ++i) {
-            int v = endpoints[i];
-            if (hops[v] == std::numeric_limits<int>::max()) {
+            int v = endnodes[i];
+            if (hops[v] == -1) {
                 hops[v] = hops[u] + 1;
                 q.push(v);
             }
@@ -26,20 +36,9 @@ std::vector<int> computeHops(int source, const std::vector<int>& offset, const s
     return hops;
 }
 
-std::vector<int> runGraphTest() {
-    std::vector<int> offset, endpoints;
-    buildGraphCSR(offset, endpoints);
+std::vector<int> runGraphTest(std::vector<int> offset, std::vector<int> endnodes, int source) {
+    auto hops = computeHops(source, offset, endnodes);
 
-    int source = 0;
-    auto hops = computeHops(source, offset, endpoints);
-
-    std::cout << "Hops from node " << source << ":\n";
-    for (size_t i = 0; i < hops.size(); ++i) {
-        std::cout << "Node " << i << ": ";
-        if (hops[i] == std::numeric_limits<int>::max())
-            std::cout << "unreachable\n";
-        else
-            std::cout << hops[i] << "\n";
-    }
+    print_hops(source, hops);
     return hops;
 }
