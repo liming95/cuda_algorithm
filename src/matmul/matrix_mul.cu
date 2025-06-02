@@ -87,7 +87,7 @@ __global__ void matmul_kernel_tiling_1(float* A, float* B, float* C, int N) {
 
 
 //Tiled and prefetch Matrix-Matrix Multiplication
-__global__ void matmul_kernel_tiling_prefetch(float* A, float* B, float* C, int N) {
+__global__ void matmul_kernel_tiling_prefetch_2(float* A, float* B, float* C, int N) {
     int row = blockIdx.y * blockDim.y + threadIdx.y;
     int col = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -130,7 +130,7 @@ __global__ void matmul_kernel_tiling_prefetch(float* A, float* B, float* C, int 
 }
 
 // double buffer for prefetch
-__global__ void matmul_kernel_tiling_prefetch_2(float* A, float* B, float* C, int N) {
+__global__ void matmul_kernel_tiling_prefetch(float* A, float* B, float* C, int N) {
     int row = blockIdx.y * blockDim.y + threadIdx.y;
     int col = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -167,6 +167,7 @@ __global__ void matmul_kernel_tiling_prefetch_2(float* A, float* B, float* C, in
     }
    C[row * N + col] = sum;
 }
+// flag represent different flow
 __global__ void matmul_kernel_tiling_prefetch_1(float* A, float* B, float* C, int N) {
     int row = blockIdx.y * blockDim.y + threadIdx.y;
     int col = blockIdx.x * blockDim.x + threadIdx.x;
@@ -319,7 +320,7 @@ __global__ void matmul_kernel_tiling_prefetch_register(float* A, float* B, float
 }
 
 // block_dim : tile_dim = 1:2. each thread process multi elements.
-__global__ void matmul_kernel_2tiling(float* A, float* B, float* C, int N) {
+__global__ void matmul_kernel_2tiling_1(float* A, float* B, float* C, int N) {
     int row = 2 * blockIdx.y * blockDim.y + threadIdx.y;
     int col = 2 * blockIdx.x * blockDim.x + threadIdx.x;
     __shared__ float A_shared[TILE_DIM][TILE_DIM];
@@ -356,7 +357,182 @@ __global__ void matmul_kernel_2tiling(float* A, float* B, float* C, int N) {
     C[(row+stride)*N+col+stride]  = sum3;
 }
 
+__global__ void matmul_kernel_2tiling(float* A, float* B, float* C, int N) {
+    int row = 2 * blockIdx.y * blockDim.y + threadIdx.y;
+    int col = 2 * blockIdx.x * blockDim.x + threadIdx.x;
+    __shared__ float A_shared[TILE_DIM * TILE_DIM];
+    __shared__ float B_shared[TILE_DIM * TILE_DIM];
+    
+    float sum[TILE_FACTOR * TILE_FACTOR];
+    #pragma unroll
+    for (int i = 0; i < TILE_FACTOR * TILE_FACTOR; i++) {
+        sum[i] = 0.0f;
+    }
+
+
+    int stride = TILE_DIM / 2;
+
+    for(int i = 0; i < N / TILE_DIM; i++){
+        int a_index, b_index, a_shar_index, b_shar_index;
+        #pragma unroll
+        for (int j = 0; j < TILE_FACTOR; j++){
+            #pragma unroll
+            for (int k = 0; k < TILE_FACTOR; k++){
+                a_shar_index = (threadIdx.y + j * stride) * TILE_DIM + threadIdx.x + k * stride;
+                b_shar_index = a_shar_index;
+                a_index = (row + j * stride) * N + i * TILE_DIM + k * stride + threadIdx.x;
+                b_index = (i * TILE_DIM + threadIdx.y + stride * j) * N + k * stride + col;
+
+                A_shared[a_shar_index] = A[a_index];
+                B_shared[b_shar_index] = B[b_index];
+            }
+        }
+
+        __syncthreads();
+
+        for(int j = 0; j < TILE_DIM; j++){
+            int a_shar_index, b_shar_index, sum_index;
+            #pragma unroll
+            for (int z = 0; z < TILE_FACTOR; z++){
+                #pragma unroll
+                for (int k = 0; k < TILE_FACTOR; k++){
+                    sum_index = z * TILE_FACTOR + k;
+                    a_shar_index = (threadIdx.y + z * stride) * TILE_DIM + j;
+                    b_shar_index = j * TILE_DIM + threadIdx.x + k * stride;
+
+                    sum[sum_index] += A_shared[a_shar_index] * B_shared[b_shar_index];
+                }
+            }
+        }
+        __syncthreads();
+    }
+
+    int sum_index, result_index;
+    #pragma unroll
+    for (int i = 0; i < TILE_FACTOR; i++){
+        #pragma unroll
+        for (int j = 0; j < TILE_FACTOR; j++){
+            result_index = (row + i * stride) * N + col + j * stride;
+            sum_index = i * TILE_FACTOR + j;
+
+            C[result_index] = sum[sum_index];
+        }
+    }
+}
+
 __global__ void matmul_kernel_2tiling_register(float* A, float* B, float* C, int N) {
+    int row = TILE_FACTOR * blockIdx.y * blockDim.y + threadIdx.y;
+    int col = TILE_FACTOR * blockIdx.x * blockDim.x + threadIdx.x;
+    __shared__ float A_shared[TILE_DIM * TILE_DIM];
+    __shared__ float B_shared[TILE_DIM * TILE_DIM];
+    
+    __shared__ float C_shared[TILE_DIM * TILE_DIM];
+
+    int stride = TILE_DIM / TILE_FACTOR;
+
+    for(int i = 0; i < N / TILE_DIM; i++){
+        int a_index, b_index, a_shar_index, b_shar_index;
+        #pragma unroll
+        for (int j = 0; j < TILE_FACTOR; j++){
+            #pragma unroll
+            for (int k = 0; k < TILE_FACTOR; k++){
+                a_shar_index = (threadIdx.y + j * stride) * TILE_DIM + threadIdx.x + k * stride;
+                b_shar_index = a_shar_index;
+                a_index = (row + j * stride) * N + i * TILE_DIM + k * stride + threadIdx.x;
+                b_index = (i * TILE_DIM + threadIdx.y + stride * j) * N + k * stride + col;
+
+                A_shared[a_shar_index] = A[a_index];
+                B_shared[b_shar_index] = B[b_index];
+            }
+        }
+
+        __syncthreads();
+
+        float A_reg[REG_DIM * REG_DIM], B_reg[REG_DIM * REG_DIM];
+        float sum[REG_DIM * REG_DIM];
+
+        int block_dim_in_tile = TILE_FACTOR / REG_DIM;
+        int stride_tile = TILE_DIM / TILE_FACTOR;
+
+        #pragma unroll
+        for (int j = 0; j < block_dim_in_tile; j++) {
+            #pragma unroll
+            for (int k = 0; k < block_dim_in_tile; k++) {
+                // row and col model have two type
+                int row_in_tile, col_in_tile;
+                row_in_tile = j * stride_tile * REG_DIM + threadIdx.y;
+                col_in_tile = k * stride_tile * REG_DIM + threadIdx.x;
+
+                // initial sum tile
+                #pragma unroll
+                for (int x = 0; x < REG_DIM * REG_DIM; x++) {
+                    sum[x] = 0.0f;
+                }
+
+                // calculate sum tile
+                int sum_index;
+                #pragma unroll
+                for (int x = 0; x < TILE_DIM / REG_DIM; x++) {
+                    int a_index, b_index;
+                    int a_reg_index, b_reg_index;
+                    // load from shared to reg
+                    #pragma unroll
+                    for (int y = 0; y < REG_DIM; y++) {
+                        #pragma unroll
+                        for (int z = 0; z < REG_DIM; z++) {
+                            a_reg_index = y * REG_DIM + z;
+                            b_reg_index = a_reg_index;
+                            a_index = (row_in_tile + y * stride_tile) * TILE_DIM + x * REG_DIM + z;
+                            b_index = (x * REG_DIM + y) * TILE_DIM + col_in_tile + z * stride_tile;
+                            A_reg[a_reg_index] = A_shared[a_index];
+                            B_reg[b_reg_index] = B_shared[b_index];
+                        }
+                    }
+                    // calculate part sum;
+                    #pragma unroll
+                    for (int y = 0; y < REG_DIM; y++) {
+                        #pragma unroll
+                        for (int z = 0; z < REG_DIM; z++) {
+                            sum_index = y * REG_DIM + z;
+                            #pragma unroll
+                            for (int q = 0; q < REG_DIM; q++) {
+                                a_reg_index = y * REG_DIM + q;
+                                b_reg_index = q * REG_DIM + z;
+                                sum[sum_index] += A_reg[a_reg_index] * B_reg[b_reg_index];
+                            }
+                        }
+                    }
+                }
+
+                // write back to result
+                int c_index;
+                #pragma unroll
+                for (int x = 0; x < REG_DIM; x++){
+                    #pragma unroll
+                    for (int y = 0; y < REG_DIM; y++) {
+                        c_index = (row_in_tile + x * stride_tile) * TILE_DIM + col_in_tile + y * stride_tile;
+                        sum_index = x * REG_DIM + y;
+                        C_shared[c_index] += sum[sum_index];
+                    }
+                }
+            }
+        }
+        __syncthreads();
+    }
+
+    int c_index, result_index;
+    #pragma unroll
+    for (int i = 0; i < TILE_FACTOR; i++){
+        #pragma unroll
+        for (int j = 0; j < TILE_FACTOR; j++){
+            result_index = (row + i * stride) * N + col + j * stride;
+            c_index = (threadIdx.y + i * stride) * TILE_DIM + j * stride + threadIdx.x;
+
+            C[result_index] = C_shared[c_index];
+        }
+    }
+}
+__global__ void matmul_kernel_2tiling_register_1(float* A, float* B, float* C, int N) {
     int row = 2 * blockIdx.y * blockDim.y + threadIdx.y;
     int col = 2 * blockIdx.x * blockDim.x + threadIdx.x;
     __shared__ float A_shared[TILE_DIM][TILE_DIM];
@@ -409,14 +585,14 @@ void launch_matmul(float* d_A, float* d_B, float* d_C, int N) {
     //dim3 threadsPerBlock(TILE_DIM, TILE_DIM);
     dim3 blocksPerGrid((N + TILE_DIM - 1) / TILE_DIM, (N + TILE_DIM - 1) / TILE_DIM);
     std::cout << "Launching kernel..." << std::endl;
-    matmul_kernel<<<blocksPerGrid, threadsPerBlock>>>(d_A, d_B, d_C, N);
+    //matmul_kernel<<<blocksPerGrid, threadsPerBlock>>>(d_A, d_B, d_C, N);
     //matmul_kernel_tiling<<<blocksPerGrid, threadsPerBlock>>>(d_A, d_B, d_C, N);
     //matmul_kernel_tiling_prefetch<<<blocksPerGrid, threadsPerBlock>>>(d_A, d_B, d_C, N);
     //matmul_kernel_tiling_prefetch_bank<<<blocksPerGrid, threadsPerBlock>>>(d_A, d_B, d_C, N);
     //matmul_kernel_tiling_bank<<<blocksPerGrid, threadsPerBlock>>>(d_A, d_B, d_C, N);
     //matmul_kernel_tiling_prefetch_register<<<blocksPerGrid, threadsPerBlock>>>(d_A, d_B, d_C, N);
     //matmul_kernel_2tiling<<<blocksPerGrid, threadsPerBlock>>>(d_A, d_B, d_C, N);
-    //matmul_kernel_2tiling_register<<<blocksPerGrid, threadsPerBlock>>>(d_A, d_B, d_C, N);
+    matmul_kernel_2tiling_register<<<blocksPerGrid, threadsPerBlock>>>(d_A, d_B, d_C, N);
     cudaError_t err = cudaGetLastError();
     std::cout << "Kernel launch: " << cudaGetErrorString(err) << std::endl;
     cudaDeviceSynchronize();
