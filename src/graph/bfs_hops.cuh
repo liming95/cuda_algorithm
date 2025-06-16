@@ -3,6 +3,8 @@
 
 #include <vector>
 
+#define BYTE_SIZE 8
+#define LANE_NUM 3
 #define WARP_SIZE 32
 #define BLOCK_MAX_SIZE 256
 #define CHECK_CUDA_SYNC(msg)                                            \
@@ -26,6 +28,8 @@ std::vector<int> computeHops(int source, const std::vector<int>& offset, const s
 std::vector<int> runGraphTest(std::vector<int> offset, std::vector<int> endnodes, int source);
 
 std::vector<int> test_bfs_hops_gpu(std::vector<int> offset, std::vector<int> endnodes, int source);
+
+std::vector<int> test_bfs_hops_async(std::vector<int> offset, std::vector<int> endnodes, int source);
 
 
 #endif // GRAPH_ALGORITHMS_H
