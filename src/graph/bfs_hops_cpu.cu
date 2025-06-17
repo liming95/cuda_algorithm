@@ -39,6 +39,6 @@ std::vector<int> computeHops(int source, const std::vector<int>& offset, const s
 std::vector<int> runGraphTest(std::vector<int> offset, std::vector<int> endnodes, int source) {
     auto hops = computeHops(source, offset, endnodes);
 
-    print_hops(source, hops);
+    // print_hops(source, hops);
     return hops;
 }

@@ -68,7 +68,8 @@ std::vector<int> test_bfs_hops_gpu(std::vector<int> offset, std::vector<int> end
     cudaMemcpy(d_queue_in, queue_in, queue_size, cudaMemcpyHostToDevice);
     cudaMemcpy(d_hops, hops.data(), hops_size, cudaMemcpyHostToDevice);
     cudaMemcpy(d_queue_out_num, &queue_out_num, queue_num_size, cudaMemcpyHostToDevice);
-
+    // std::cout << "GPU no perf\n";
+    // int loop = 0;
     do {
         // block size
         int threadsPerBlock_up = ((queue_in_num + WARP_SIZE - 1) / WARP_SIZE) * WARP_SIZE;
@@ -77,6 +78,7 @@ std::vector<int> test_bfs_hops_gpu(std::vector<int> offset, std::vector<int> end
 
         int threadsPerBlock = block_size;
         int blocksPerGrid = grid_size;
+        // std::cout << "current hop (" << loop << "): queue_in_num (" << queue_in_num << ")\n";
 
         // kernel launch
         computeHops_gpu<<<blocksPerGrid, threadsPerBlock>>>(d_queue_in, d_queue_out, d_offset, d_endnodes,
