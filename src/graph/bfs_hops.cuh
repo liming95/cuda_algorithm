@@ -2,6 +2,12 @@
 #define GRAPH_ALGORITHMS_H
 
 #include <vector>
+#include <climits>
+
+#define INT_BIT_LEN 32
+#define EVEN 0
+#define ODD 1
+#define INVAILD INT_MAX
 
 #define BYTE_SIZE 8
 #define LANE_NUM 3
@@ -31,5 +37,6 @@ std::vector<int> test_bfs_hops_gpu(std::vector<int> offset, std::vector<int> end
 
 std::vector<int> test_bfs_hops_async(std::vector<int> offset, std::vector<int> endnodes, int source);
 
+std::vector<int> test_bfs_hops_fusion(std::vector<int> offset, std::vector<int> endnodes, int source);
 
 #endif // GRAPH_ALGORITHMS_H

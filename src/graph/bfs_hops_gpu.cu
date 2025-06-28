@@ -19,10 +19,10 @@ __global__ void computeHops_gpu(int* queue_in, int* queue_out, int* offset, int*
 
             // calculate hops from start to end_node
             end_hop = hops[node] + 1;
-            end_hop = atomicCAS(&hops[end_node], -1, end_hop);
+            end_hop = atomicCAS(&hops[end_node], INVAILD, end_hop);
 
             // push into queue_out
-            if(end_hop == -1) {
+            if(end_hop == INVAILD) {
                 queue_index = atomicAdd(queue_out_num, 1);
                 queue_out[queue_index] = end_node;
             }
@@ -44,7 +44,7 @@ std::vector<int> test_bfs_hops_gpu(std::vector<int> offset, std::vector<int> end
     queue_in_num++;
 
     // initial hops
-    std::vector<int> hops(node_num, -1);
+    std::vector<int> hops(node_num, INVAILD);
     hops[source] = 0;
 
     // copy to device
@@ -70,6 +70,11 @@ std::vector<int> test_bfs_hops_gpu(std::vector<int> offset, std::vector<int> end
     cudaMemcpy(d_queue_out_num, &queue_out_num, queue_num_size, cudaMemcpyHostToDevice);
     // std::cout << "GPU no perf\n";
     // int loop = 0;
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+
+    cudaEventRecord(start, 0);
     do {
         // block size
         int threadsPerBlock_up = ((queue_in_num + WARP_SIZE - 1) / WARP_SIZE) * WARP_SIZE;
@@ -102,7 +107,15 @@ std::vector<int> test_bfs_hops_gpu(std::vector<int> offset, std::vector<int> end
     // copy hops from device to host
     cudaMemcpy(hops.data(), d_hops, hops_size, cudaMemcpyDeviceToHost);
 
-    //print_hops(source, hops);
+    cudaEventRecord(stop, 0);
+    cudaEventSynchronize(stop);
+
+    float milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    std::cout << "GPU: bfs_hops_gpu. Elapsed time :" << milliseconds << " (ms)\n";
+
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
 
     cudaFree(d_offset);
     cudaFree(d_endnodes);
@@ -111,5 +124,6 @@ std::vector<int> test_bfs_hops_gpu(std::vector<int> offset, std::vector<int> end
     cudaFree(d_hops);
     cudaFree(d_queue_out_num);
 
+    //print_hops(source, hops);
     return hops;
 }

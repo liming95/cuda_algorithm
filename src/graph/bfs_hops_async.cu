@@ -200,7 +200,13 @@ void bfs_hops_async(std::vector<int> offset, std::vector<int> edges, int node_nu
 
     bool has_task = has_node_frontier[0] || has_node_frontier[1] || has_node_frontier[2];
     int loop = 0;
-    while(has_task && loop < 5) {
+
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+
+    cudaEventRecord(start, 0);
+    while(has_task) {
         // std::cout << "The " << loop << " iterate\n";
         for(int i = 0; i < LANE_NUM; i++){
             int cur_hop = loop * LANE_NUM + i;
@@ -261,6 +267,13 @@ void bfs_hops_async(std::vector<int> offset, std::vector<int> edges, int node_nu
     // for (int i = 0; i < hops.size(); i++){
     //     std::cout << "hops[" << i << "]: " << hops[i] << std::endl;
     // }
+    cudaEventRecord(stop, 0);
+    cudaEventSynchronize(stop);
+
+    float milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    std::cout << "GPU: bfs_hops_async. Elapsed time :" << milliseconds << " (ms)\n";
+
     cudaFree(d_offset);
     cudaFree(d_edges);
     cudaFree(d_hops);
@@ -276,18 +289,20 @@ void bfs_hops_async(std::vector<int> offset, std::vector<int> edges, int node_nu
         cudaFree(d_nf_num[i]);
         cudaFree(d_ef_num[i]);
     }
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
 }
 
 std::vector<int> test_bfs_hops_async(std::vector<int> offset, std::vector<int> endnodes, int source){
     int node_num = offset.size() - 1;
     int edge_num = endnodes.size();
 
-    std::vector<int> hops(node_num, -1);
+    std::vector<int> hops(node_num, INVAILD);
     hops[source] = 0;
     // std::cout << "GPU:" << std::endl;
 
     bfs_hops_async(offset, endnodes, node_num, edge_num, source, hops);
 
-    print_hops(source, hops);
+    //print_hops(source, hops);
     return hops;
 }

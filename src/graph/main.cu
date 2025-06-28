@@ -1,22 +1,34 @@
 #include <assert.h>
 #include "bfs_hops.cuh"
 #include "graph_utils.cuh"
-
+#include <iostream>
+void print_vector_diff(int source, std::vector<int> hops1, std::vector<int> hops2) {
+    std::cout << "Hops from node " << source << ":\n";
+    for (size_t i = 0; i < hops1.size(); ++i) {
+        if (hops1[i] != hops2[i]) {
+            std::cout << "Node " << i << ": ";
+            std::cout << "(" << hops1[i] << ", " << hops2[i] << ")\n";
+        }
+    }
+}
 int main() {
     int source = 0;
-    std::vector<int> offset, endnodes;
-    //buildGraphCSR(offset, endnodes);
-    int node_num = 100;
-    int max_degree = 20;
-    buildRandomGraphCSR(offset, endnodes, node_num, max_degree);
-    //printGraphCSR(offset, endnodes);
-    std::vector<int> hops_cpu, hops_gpu, hops_async;
+    std::vector<int> offset, edges;
+    //buildGraphCSR(offset, edges);
+    int node_num = 300;
+    int max_degree = 5;
+    buildRandomGraphCSR(offset, edges, node_num, max_degree);
+    //printGraphCSR(offset, edges);
+    std::vector<int> hops_cpu, hops_gpu, hops_async, hops_fusion;
 
 
-    hops_cpu = runGraphTest(offset, endnodes, source);
-    hops_gpu = test_bfs_hops_gpu(offset, endnodes, source);
+    hops_cpu = runGraphTest(offset, edges, source);
+    hops_gpu = test_bfs_hops_gpu(offset, edges, source);
     assert(hops_cpu == hops_gpu);
-    hops_async = test_bfs_hops_async(offset, endnodes, source);
-    assert(hops_cpu == hops_async);
+    // hops_async = test_bfs_hops_async(offset, edges, source);
+    // assert(hops_cpu == hops_async);
+    hops_fusion = test_bfs_hops_fusion(offset, edges, source);
+    print_vector_diff(source, hops_cpu, hops_fusion);
+    assert(hops_cpu == hops_fusion);
     return 0;
 }

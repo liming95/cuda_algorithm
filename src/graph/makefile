@@ -12,7 +12,7 @@ COMPILER = nvcc
 COMPILER_FLAGS = -gencode arch=compute_89,code=sm_89 -std=c++17 -O2
 
 # All source files required for compilation
-SRC_FILES = $(SRC_DIR)/main.cu $(SRC_DIR)/bfs_hops_cpu.cu $(SRC_DIR)/bfs_hops_gpu.cu ./graph_utils.cu ./bfs_hops_async.cu
+SRC_FILES = $(SRC_DIR)/main.cu $(SRC_DIR)/bfs_hops_cpu.cu $(SRC_DIR)/bfs_hops_gpu.cu ./graph_utils.cu ./bfs_hops_async.cu ./bfs_hops_fusion.cu
 
 PERF_TOOL = ../../script/ncu.sh
 PERF_OUT_DIR = ../../build/test/perf/graph
