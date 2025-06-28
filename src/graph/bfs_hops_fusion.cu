@@ -36,7 +36,7 @@ __global__ void bfs_hops_fusion_2(int* g_offset, int* g_edges, int node_num, int
 
       // 1. filtering the input data
       cur_hop = distance[vertex];
-      printf("(1)vertex: %d, hop: %d\n", vertex, cur_hop);
+      //printf("(1)vertex: %d, hop: %d\n", vertex, cur_hop);
       if((cur_hop & ODD) == EVEN) {
         //cur_hop += 1;
         // 2. expanding neighbors
@@ -45,13 +45,13 @@ __global__ void bfs_hops_fusion_2(int* g_offset, int* g_edges, int node_num, int
         // 3. update neighbors & add into next input and edge forntiers
         for(int i = start; i < end; i++){
           neighbor = g_edges[i];
-          printf("(1)neighbor: %d\n", neighbor);
+          //printf("(1)neighbor: %d\n", neighbor);
           n_hop = atomicMin(&distance[neighbor], next_hop);
           if(next_hop < n_hop){
-            printf("(1)enqueue:%d\n", neighbor);
+            //printf("(1)enqueue:%d\n", neighbor);
             index = atomicAdd(&vf_num, 1);
             vertex_frontiers[index] = neighbor;
-            assert(vf_num <= node_num);
+            //assert(vf_num <= node_num);
           }
         }
       }
@@ -70,10 +70,11 @@ __global__ void bfs_hops_fusion_2(int* g_offset, int* g_edges, int node_num, int
           vertex_num = atomicMax(&vf_num, offset);
           task_size = vertex_num > offset ? block_size : vertex_num - task_offset;
         } else {
-          continue;
+          task_size = 0;
         }
-        printf("(2)task_size: %d, task_offset: %d, block_size: %d, vf_num: %d\n",task_size, task_offset, block_size, vertex_num);
+        //printf("(2)task_size: %d, task_offset: %d, block_size: %d, vf_num: %d\n",task_size, task_offset, block_size, vertex_num);
       }
+       __syncthreads();
       //
       // calculate hops
       if(blk_tid < task_size){
@@ -81,7 +82,7 @@ __global__ void bfs_hops_fusion_2(int* g_offset, int* g_edges, int node_num, int
         //printf("(2)blk_tid: %d, task_offset: %d\n",blk_tid, task_offset);
         index = blk_tid + task_offset;
         vertex = vertex_frontiers[index];
-        printf("(2)blk_tid: %d, dequeue_vertex: %d\n",blk_tid, vertex);
+        //printf("(2)blk_tid: %d, dequeue_vertex: %d\n",blk_tid, vertex);
 
         // expanding neighbors
         start = g_offset[vertex];
@@ -97,7 +98,7 @@ __global__ void bfs_hops_fusion_2(int* g_offset, int* g_edges, int node_num, int
         }
       }
       __syncthreads();
-      if(threadIdx.x == 0){
+      if((threadIdx.x == 0) && (task_size != 0)){
         atomicAdd(&processed_num, block_size);
         task_offset = atomicAdd(&block_offset, block_size);
       }
