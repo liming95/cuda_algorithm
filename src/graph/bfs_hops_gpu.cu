@@ -25,9 +25,13 @@ __global__ void computeHops_gpu(int* queue_in, int* queue_out, int* offset, int*
             if(end_hop == INVAILD) {
                 queue_index = atomicAdd(queue_out_num, 1);
                 queue_out[queue_index] = end_node;
+                //printf("end_node: %d\n", end_node);
             }
         }
     }
+    // if(tid == 0){
+    //     printf("queue_out_num: %d\n", *queue_out_num);
+    // }
 }
 
 std::vector<int> test_bfs_hops_gpu(std::vector<int> offset, std::vector<int> endnodes, int source){
@@ -75,7 +79,9 @@ std::vector<int> test_bfs_hops_gpu(std::vector<int> offset, std::vector<int> end
     cudaEventCreate(&stop);
 
     cudaEventRecord(start, 0);
+    int sum = 0;
     do {
+        sum += queue_in_num;
         // block size
         int threadsPerBlock_up = ((queue_in_num + WARP_SIZE - 1) / WARP_SIZE) * WARP_SIZE;
         int block_size = queue_in_num > BLOCK_MAX_SIZE ? BLOCK_MAX_SIZE : threadsPerBlock_up;
@@ -95,6 +101,7 @@ std::vector<int> test_bfs_hops_gpu(std::vector<int> offset, std::vector<int> end
         // copy queue_out_num to host
         cudaMemcpy(&queue_out_num, d_queue_out_num, queue_num_size, cudaMemcpyDeviceToHost);
         queue_in_num = queue_out_num;
+        //printf("queue_out_num: %d\n", queue_out_num);
         queue_out_num = 0;
         cudaMemcpy(d_queue_out_num, &queue_out_num, queue_num_size, cudaMemcpyHostToDevice);
         int * tmp;
@@ -103,7 +110,7 @@ std::vector<int> test_bfs_hops_gpu(std::vector<int> offset, std::vector<int> end
         d_queue_out = tmp;
     }
     while(queue_in_num);
-
+    //printf("gpu sum: %d\n", sum);
     // copy hops from device to host
     cudaMemcpy(hops.data(), d_hops, hops_size, cudaMemcpyDeviceToHost);
 

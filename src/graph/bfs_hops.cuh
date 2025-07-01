@@ -25,6 +25,11 @@
         }                                                               \
     }
 
+#define GET_BIT_INDEX_OFFSET(pos, index, offset) \
+    int word_bit_len = (sizeof(int)) * BYTE_SIZE; \
+    index = pos / word_bit_len; \
+    offset = pos % word_bit_len
+
 void print_hops(int source, std::vector<int> hops);
 
 // Compute number of hops from source to all other nodes.
@@ -38,5 +43,7 @@ std::vector<int> test_bfs_hops_gpu(std::vector<int> offset, std::vector<int> end
 std::vector<int> test_bfs_hops_async(std::vector<int> offset, std::vector<int> endnodes, int source);
 
 std::vector<int> test_bfs_hops_fusion(std::vector<int> offset, std::vector<int> endnodes, int source);
+
+std::vector<int> test_bfs_hops_async_2(std::vector<int> offset, std::vector<int> endnodes, int source);
 
 #endif // GRAPH_ALGORITHMS_H

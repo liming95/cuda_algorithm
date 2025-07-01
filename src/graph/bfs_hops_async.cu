@@ -24,10 +24,6 @@ inline void calculate_kernel_config(int thread_num, int& block_size, int& grid_s
     block_size = thread_num > BLOCK_MAX_SIZE ? BLOCK_MAX_SIZE : threadsPerBlock_up;
     grid_size = (thread_num + BLOCK_MAX_SIZE - 1) / BLOCK_MAX_SIZE;
 }
-#define GET_BIT_INDEX_OFFSET(pos, index, offset) \
-    int word_bit_len = (sizeof(int)) * BYTE_SIZE; \
-    index = pos / word_bit_len; \
-    offset = pos % word_bit_len
 
 __global__ void get_edge_frontiers(int* offset, int* edges, int node_num, int edge_num,
                                     int* node_frontiers, int* nf_num,

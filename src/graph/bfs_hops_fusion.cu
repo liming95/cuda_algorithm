@@ -170,7 +170,7 @@ std::vector<int> test_bfs_hops_fusion(std::vector<int> offset, std::vector<int> 
         // std::cout << "current hop (" << loop << "): queue_in_num (" << queue_in_num << ")\n";
 
         // kernel launch
-        int initial_value = 0;
+        //int initial_value = 0;
         // cudaMemcpyToSymbol(vf_num, &initial_value, sizeof(int));
         // cudaMemcpyToSymbol(producer_num, &initial_value, sizeof(int));
         // cudaMemcpyToSymbol(block_offset, &initial_value, sizeof(int));
