@@ -26,7 +26,12 @@ __global__ void bfs_hops_fusion_2(int* g_offset, int* g_edges, int node_num, int
     int tmp_hop;
     int offset;
 
-
+    if(tid == 0) {
+      vf_num = 0;
+      block_offset = 0;
+      producer_num = 0;
+      processed_num = 0;
+    }
     if(tid < input_num){
       vertex = input_frontiers[tid];
       // int index = vertex / INT_BIT_LEN;
@@ -166,10 +171,10 @@ std::vector<int> test_bfs_hops_fusion(std::vector<int> offset, std::vector<int> 
 
         // kernel launch
         int initial_value = 0;
-        cudaMemcpyToSymbol(vf_num, &initial_value, sizeof(int));
-        cudaMemcpyToSymbol(producer_num, &initial_value, sizeof(int));
-        cudaMemcpyToSymbol(block_offset, &initial_value, sizeof(int));
-        cudaMemcpyToSymbol(processed_num, &initial_value, sizeof(int));
+        // cudaMemcpyToSymbol(vf_num, &initial_value, sizeof(int));
+        // cudaMemcpyToSymbol(producer_num, &initial_value, sizeof(int));
+        // cudaMemcpyToSymbol(block_offset, &initial_value, sizeof(int));
+        // cudaMemcpyToSymbol(processed_num, &initial_value, sizeof(int));
         bfs_hops_fusion_2<<<blocksPerGrid, threadsPerBlock>>>(d_offset, d_edges, offset.size(), edge_num,
                                                               d_queue_in, queue_in_num,
                                                               d_vertex_frontiers,
