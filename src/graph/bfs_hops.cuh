@@ -13,6 +13,15 @@
 #define LANE_NUM 3
 #define WARP_SIZE 32
 #define BLOCK_MAX_SIZE 256
+
+//#define DEBUG_LEVEL 0 //Todo: 0 no debug, 1 debug, 2 log
+#if DEBUG_LEVEL >= 1
+    #define DEBUG_PRINT(fmt, ...) printf("[DEBUG] " fmt, ##__VA_ARGS__)
+#else
+    #define DEBUG_PRINT(fmt, ...)
+#endif
+
+
 #define CHECK_CUDA_SYNC(msg)                                            \
     {                                                                   \
         cudaError_t err = cudaDeviceSynchronize();                      \
@@ -45,5 +54,7 @@ std::vector<int> test_bfs_hops_async(std::vector<int> offset, std::vector<int> e
 std::vector<int> test_bfs_hops_fusion(std::vector<int> offset, std::vector<int> endnodes, int source);
 
 std::vector<int> test_bfs_hops_async_2(std::vector<int> offset, std::vector<int> endnodes, int source);
+
+std::vector<int> test_bfs_hops_fusion_o1(std::vector<int> offset, std::vector<int> endnodes, int source);
 
 #endif // GRAPH_ALGORITHMS_H

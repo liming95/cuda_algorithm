@@ -19,7 +19,7 @@ int main() {
     int max_degree = 5;
     buildRandomGraphCSR(offset, edges, node_num, max_degree);
     //printGraphCSR(offset, edges);
-    std::vector<int> hops_cpu, hops_gpu, hops_async, hops_fusion, hops_async_2;
+    std::vector<int> hops_cpu, hops_gpu, hops_async, hops_fusion, hops_async_2, hops_fusion_o1;
 
 
     hops_cpu = runGraphTest(offset, edges, source);
@@ -29,9 +29,12 @@ int main() {
     assert(hops_cpu == hops_async);
     hops_fusion = test_bfs_hops_fusion(offset, edges, source);
     assert(hops_cpu == hops_fusion);
-
     hops_async_2 = test_bfs_hops_async_2(offset, edges, source);
-    print_vector_diff(source, hops_cpu, hops_async_2);
     assert(hops_cpu == hops_async_2);
+
+    hops_fusion_o1 = test_bfs_hops_fusion_o1(offset, edges, source);
+    print_vector_diff(source, hops_cpu, hops_fusion_o1);
+    assert(hops_cpu == hops_fusion_o1);
+
     return 0;
 }
