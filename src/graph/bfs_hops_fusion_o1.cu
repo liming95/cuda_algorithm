@@ -194,7 +194,7 @@ __global__ void bfs_hops_fusion_2_o1(int* g_offset, int* g_edges, int node_num, 
       __syncthreads();
 
       for(int i = blk_tid; i < total_edges_per_block; i += block_size){
-        auto it = thrust::upper_bound(thrust::seq, blk_degrees, blk_degrees+task_size, i);
+        auto it = thrust::upper_bound(thrust::seq, blk_degrees, blk_degrees+input_num_reg, i);
         int idx = thrust::distance(blk_degrees, it) - 1;
 
         vertex = blk_vertexs[idx];

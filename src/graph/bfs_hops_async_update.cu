@@ -4,11 +4,11 @@
 #include "bfs_hops.cuh"
 
 __global__ void get_output_frontiers_2(int* offset, int* edges, int node_num, int edge_num,
-                                    int* node_frontiers, int nf_num,
+                                    int* input_frontiers, int nf_num,
                                     int* output_frontiers, int* output_num,
                                     int* status_bitmap, int bitmap_len);
 
-__global__ void update_node_status_2(int* node_frontiers, int nf_num, int* hops, int hop);
+__global__ void update_node_status_2(int* input_frontiers, int nf_num, int* hops, int hop);
 
 void bfs_hops_async_2(std::vector<int> offset, std::vector<int> edges, int node_num, int edge_num,
                    int source,
@@ -23,7 +23,7 @@ inline void calculate_kernel_config(int thread_num, int& block_size, int& grid_s
 __device__ int update_num;
 
 __global__ void get_output_frontiers_2(int* offset, int* edges, int node_num, int edge_num,
-                                    int* node_frontiers, int nf_num,
+                                    int* input_frontiers, int nf_num,
                                     int* output_frontiers, int* output_num,
                                     int* status_bitmap, int bitmap_len,
                                     int* update_frontiers){
@@ -42,7 +42,7 @@ __global__ void get_output_frontiers_2(int* offset, int* edges, int node_num, in
     //load bitmap into shared memory
 
     if(tid < nf_num){
-        node = node_frontiers[tid];
+        node = input_frontiers[tid];
         edge_start = offset[node];
         edge_end = offset[node+1];
         //printf("1:node: %d, its neighbors(%d) from %d to %d\n", node, edge_num, edge_start, edge_end);
@@ -70,14 +70,14 @@ __global__ void get_output_frontiers_2(int* offset, int* edges, int node_num, in
     }
 }
 
-__global__ void update_node_status_2(int* node_frontiers, int offset, int nf_num, int* hops, int hop){
+__global__ void update_node_status_2(int* input_frontiers, int offset, int nf_num, int* hops, int hop){
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
     // if(tid == 0){
     //     printf("update_node_status_2: nf_num: %d\n", nf_num);
     // }
 
     if(tid < nf_num){
-        int node = node_frontiers[offset+tid];
+        int node = input_frontiers[offset+tid];
         //printf("node: %d, hop: %d\n", node, hops[node]); 
         hops[node] = hop + 1;
     }
