@@ -16,7 +16,7 @@ __global__ void computeHops_gpu(int* queue_in, int* queue_out, int* offset, int*
         int end_hop, queue_index;
         for(int i = edge_start; i < edge_end; i++) {
             end_node = endnodes[i];
-
+            //printf("edge:(%d, %d)  ", node, end_node);
             // calculate hops from start to end_node
             end_hop = hops[node] + 1;
             end_hop = atomicCAS(&hops[end_node], INVAILD, end_hop);
@@ -28,6 +28,7 @@ __global__ void computeHops_gpu(int* queue_in, int* queue_out, int* offset, int*
                 //printf("end_node: %d\n", end_node);
             }
         }
+        //printf("\n");
     }
     // if(tid == 0){
     //     printf("queue_out_num: %d\n", *queue_out_num);
@@ -79,7 +80,7 @@ std::vector<int> test_bfs_hops_gpu(std::vector<int> offset, std::vector<int> end
     cudaEventCreate(&stop);
 
     cudaEventRecord(start, 0);
-    int sum = 0;
+    int sum = 0, level = 0;
     do {
         sum += queue_in_num;
         // block size
@@ -101,6 +102,8 @@ std::vector<int> test_bfs_hops_gpu(std::vector<int> offset, std::vector<int> end
         // copy queue_out_num to host
         cudaMemcpy(&queue_out_num, d_queue_out_num, queue_num_size, cudaMemcpyDeviceToHost);
         queue_in_num = queue_out_num;
+        level++;
+        printf("level: %d, vertex num: %d\n", level, queue_out_num);
         //printf("queue_out_num: %d\n", queue_out_num);
         queue_out_num = 0;
         cudaMemcpy(d_queue_out_num, &queue_out_num, queue_num_size, cudaMemcpyHostToDevice);

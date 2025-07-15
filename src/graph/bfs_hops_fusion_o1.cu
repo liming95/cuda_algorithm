@@ -8,8 +8,8 @@
 #include <cub/block/block_load.cuh>
 #include <cub/block/block_scan.cuh>
 
+#define DEBUG_LEVEL 0
 #include "bfs_hops.cuh"
-
 
 __device__ int vf_num, block_offset, producer_num, processed_num;
 
@@ -46,6 +46,13 @@ __global__ void bfs_hops_fusion_2_o1(int* g_offset, int* g_edges, int node_num, 
     __shared__ int blk_vertexs[BLOCK_MAX_SIZE];
     __shared__ int blk_start_offset[BLOCK_MAX_SIZE];
     __shared__ int blk_vertex_frontiers[BLOCK_MAX_SIZE];
+
+    if(blk_tid == 0) {
+      vf_num = 0;
+      block_offset = 0;
+      producer_num = 0;
+      processed_num = 0;
+    }
 
     blk_vertex_frontiers[blk_tid] = 0;
 
@@ -133,7 +140,7 @@ __global__ void bfs_hops_fusion_2_o1(int* g_offset, int* g_edges, int node_num, 
     for(int i = blk_tid; i < total_edges_per_block; i += block_size){
       auto it = thrust::upper_bound(thrust::seq, blk_degrees, blk_degrees+block_size, i);
       int idx = thrust::distance(blk_degrees, it) - 1;
-      DEBUG_PRINT("(2.1) i: %d, idx: %d\n", i, idx);
+      DEBUG_PRINT("(2.1) binary search. edges : %dth, index: %d\n", i, idx);
       vertex = blk_vertex_frontiers[idx];
       start = blk_start_offset[idx];
       int offset_in_ngb_per_vertex = i - blk_degrees[idx];
@@ -147,26 +154,30 @@ __global__ void bfs_hops_fusion_2_o1(int* g_offset, int* g_edges, int node_num, 
         output_frontiers[index] = neighbor;
       }
     }
-    __syncthreads();
 
-    // 2. consume the remainding vertex in glb task pool
     __shared__ int task_size, task_offset;
     if(threadIdx.x == 0){
       atomicAdd(&producer_num, 1);
       task_offset = atomicAdd(&block_offset, block_size);
     }
+    __syncthreads();
 
+    // 2. consume the remainding vertex in glb task pool
     while((producer_num < grid_size) || (processed_num < vf_num)){
+      CUDA_DEBUG_BLK(blk_tid, "(2.2) communication between blocks. producer num: (%d, %d), processed_num: (%d, %d)\n",
+                      producer_num, grid_size, processed_num, vf_num);
       // load task
+      int vertex_num;
       if(threadIdx.x == 0){
         if(vf_num > task_offset){
           int offset = task_offset + block_size;
-          int vertex_num = atomicMax(&vf_num, offset);
+          vertex_num = atomicMax(&vf_num, offset);
           task_size = vertex_num > offset ? block_size : vertex_num - task_offset;
         } else {
           task_size = 0;
         }
-        //printf("(2)task_size: %d, task_offset: %d, block_size: %d, vf_num: %d\n",task_size, task_offset, block_size, vertex_num);
+        DEBUG_PRINT("(2.2)producer_num: %d, processed_num: %d, task_size: %d, task_offset: %d, block_size: %d, vf_num: %d\n",
+                    producer_num, processed_num, task_size, task_offset, block_size, vertex_num);
       }
       __syncthreads();
 
@@ -179,11 +190,10 @@ __global__ void bfs_hops_fusion_2_o1(int* g_offset, int* g_edges, int node_num, 
         vertex = vertex_frontiers[blk_tid];
         blk_vertexs[blk_tid] = vertex;
         start = g_offset[vertex];
-        end = g_offset[vertex];
+        end = g_offset[vertex+1];
         neighbors_num[0] = end - start;
         blk_start_offset[blk_tid] = start;
-        DEBUG_PRINT("(2.2)vertex: %d, hop: %d\n", vertex, cur_hop);
-
+        DEBUG_PRINT("(2.2)vertex: %d, ngh_nums: %d\n", vertex, neighbors_num[0]);
       }
       else {
         neighbors_num[0] = 0;
@@ -192,7 +202,7 @@ __global__ void bfs_hops_fusion_2_o1(int* g_offset, int* g_edges, int node_num, 
 
       blk_degrees[blk_tid] = neighbors_num[0];
       __syncthreads();
-
+      CUDA_DEBUG_BLK(blk_tid, "(2.2)total edges: %d\n", total_edges_per_block);
       for(int i = blk_tid; i < total_edges_per_block; i += block_size){
         auto it = thrust::upper_bound(thrust::seq, blk_degrees, blk_degrees+input_num_reg, i);
         int idx = thrust::distance(blk_degrees, it) - 1;
@@ -203,6 +213,7 @@ __global__ void bfs_hops_fusion_2_o1(int* g_offset, int* g_edges, int node_num, 
         neighbor = g_edges[start+offset_in_ngb_per_vertex];
 
         ngb_hop = atomicMin(&distance[neighbor], hop);
+        DEBUG_PRINT("(2.2)neighbors(%d, %d), pre_hop: %d, hop: %d\n", vertex, neighbor, ngb_hop, hop);
         // produce frontiers for next step
         if(hop < ngb_hop) {
           int index = atomicAdd(output_num, 1);
@@ -215,13 +226,6 @@ __global__ void bfs_hops_fusion_2_o1(int* g_offset, int* g_edges, int node_num, 
         atomicAdd(&processed_num, block_size);
         task_offset = atomicAdd(&block_offset, block_size);
       }
-    }
-
-    if(glb_tid == 0) {
-      vf_num = 0;
-      block_offset = 0;
-      producer_num = 0;
-      processed_num = 0;
     }
 }
 

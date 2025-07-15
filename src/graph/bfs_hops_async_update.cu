@@ -171,7 +171,7 @@ void bfs_hops_async_2(std::vector<int> offset, std::vector<int> edges, int node_
         //cudaStreamWaitEvent(nf_ready, stream_update);
         calculate_kernel_config(nf_num, threadsPerBlock, blocksPerGrid);
         update_node_status_2<<<blocksPerGrid, threadsPerBlock, 0, stream_update>>>(d_update_frontiers, update_offset, nf_num,
-                                                                    d_hops, cur_hop);
+                                                                   d_hops, cur_hop);
         update_offset += nf_num;
         cur_hop++;
         //printf("update_offset: %d\n", update_offset);
