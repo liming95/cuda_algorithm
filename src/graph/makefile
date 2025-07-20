@@ -14,10 +14,11 @@ COMPILER_FLAGS = -gencode arch=compute_89,code=sm_89 -std=c++17 -O2
 # All source files required for compilation
 SRC_FILES = $(SRC_DIR)/main.cu $(SRC_DIR)/bfs_hops_cpu.cu $(SRC_DIR)/bfs_hops_gpu.cu \
 			./graph_utils.cu ./bfs_hops_async.cu ./bfs_hops_fusion.cu ./bfs_hops_async_update.cu \
-			./bfs_hops_fusion_o1.cu ./bfs_hops_async_update_o1.cu
+			./bfs_hops_fusion_o1.cu ./bfs_hops_async_update_o1.cu ./bfs_hops_fusion_o2.cu
 
 PERF_TOOL = ../../script/ncu.sh
 PERF_OUT_DIR = ../../build/test/perf/graph
+RUN_ARGS = 1000
 # Default target
 all: build
 
@@ -32,7 +33,7 @@ $(BUILD_DIR)/$(TARGET_OBJ): $(SRC_FILES)
 
 # Run the compiled program
 run: build
-	$(BUILD_DIR)/$(TARGET_OBJ)
+	$(BUILD_DIR)/$(TARGET_OBJ) $(RUN_ARGS)
 
 # Clean up generated build files
 clean:

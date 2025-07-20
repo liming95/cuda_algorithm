@@ -80,4 +80,6 @@ std::vector<int> test_bfs_hops_fusion_o1(std::vector<int> offset, std::vector<in
 
 std::vector<int> test_bfs_hops_async_o1(std::vector<int> offset, std::vector<int> endnodes, int source);
 
+std::vector<int> test_bfs_hops_fusion_o2(std::vector<int> offset, std::vector<int> endnodes, int source);
+
 #endif // GRAPH_ALGORITHMS_H
