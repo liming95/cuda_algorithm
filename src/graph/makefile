@@ -18,7 +18,7 @@ SRC_FILES = $(SRC_DIR)/main.cu $(SRC_DIR)/bfs_hops_cpu.cu $(SRC_DIR)/bfs_hops_gp
 
 PERF_TOOL = ../../script/ncu.sh
 PERF_OUT_DIR = ../../build/test/perf/graph
-RUN_ARGS = 1000
+RUN_ARGS = 10000
 # Default target
 all: build
 

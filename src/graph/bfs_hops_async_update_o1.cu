@@ -38,8 +38,8 @@ __global__ void get_output_frontiers_o1(int* g_offset, int* g_edges, int node_nu
                                     int* output_bitmap, int* output_num,
                                     int* status_bitmap, int bitmap_len,
                                     int* update_frontiers){
-    int glb_tid = blockIdx.x * blockDim.x + threadIdx.x;
-    CUDA_DEBUG(glb_tid, "Get Output Frontiers O1...\n");
+    // int glb_tid = blockIdx.x * blockDim.x + threadIdx.x;
+    // CUDA_DEBUG(glb_tid, "Get Output Frontiers O1...\n");
     int blk_tid = threadIdx.x;
     int block_size = blockDim.x;
     int grid_size = gridDim.x;
@@ -358,7 +358,7 @@ void bfs_hops_async_o1(std::vector<int> offset, std::vector<int> edges, int node
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
 
-    int sum = 0, level = 0;
+    //int sum = 0, level = 0;
     int threadsPerBlock, blocksPerGrid;
     int cur_hop = 0;
     int nf_num = 1;
@@ -368,7 +368,7 @@ void bfs_hops_async_o1(std::vector<int> offset, std::vector<int> edges, int node
     int threadsPerBlock_inital = bitmap_len > BLOCK_MAX_SIZE ? BLOCK_MAX_SIZE : threadsPerBlock_up;
     int blocksPerGrid_inital = (bitmap_len + BLOCK_MAX_SIZE - 1) / BLOCK_MAX_SIZE;
 
-    while(nf_num && update_offset < 1500){
+    while(nf_num){
         int smem_size = (2 * bitmap_len + ((bitmap_len + blocksPerGrid - 1) / blocksPerGrid) * 32) * sizeof(int);
         //assert(smem_size < 48 * 1024);
 
