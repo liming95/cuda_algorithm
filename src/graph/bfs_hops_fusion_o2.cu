@@ -18,6 +18,12 @@ __device__ int vf_num, block_offset;
  * opt 2: deliver frontiers in different
  * (x)eliminate opt 3: load balance in differen block
 */
+__global__ void initial_device_var(){
+  if(blockIdx.x == 0 && threadIdx.x == 0){
+    vf_num = 0;
+    block_offset = 0;
+  }
+}
 __global__ void bfs_hops_fusion_2_o2(int* g_offset, int* g_edges, int node_num, int edge_num,
                               int* input_frontiers, int input_num,
                               int* vertex_frontiers,
@@ -57,6 +63,12 @@ __global__ void bfs_hops_fusion_2_o2(int* g_offset, int* g_edges, int node_num, 
       blk_vf_num = 0; // Todo: reduce sum;
     }
 
+    // if(blk_tid == 0) {
+    //   vf_num = 0;
+    //   block_offset = 0;
+    //   // device sync
+    // }
+
     // First Level
     if(glb_tid < input_num_reg){
       vertex = input_frontiers[glb_tid];
@@ -82,11 +94,9 @@ __global__ void bfs_hops_fusion_2_o2(int* g_offset, int* g_edges, int node_num, 
     }
 
     BlockScan(temp_storage).ExclusiveSum(neighbors_num, neighbors_num, total_edges_per_block);
-
     blk_degrees[blk_tid] = neighbors_num[0];
     __syncthreads();
     //DEBUG_PRINT("thread:(%d, %d), prefix_sum: %d, total_ngb: %d\n", glb_tid, blk_tid, blk_degrees[blk_tid], total_edges_per_block);
-
 
     degrees_length = blockIdx.x < (grid_size - 1) ? block_size : input_num_reg - (glb_tid - blk_tid);
     //binary search
@@ -101,21 +111,19 @@ __global__ void bfs_hops_fusion_2_o2(int* g_offset, int* g_edges, int node_num, 
 
       ngb_hop = atomicMin(&distance[neighbor], hop);
       DEBUG_PRINT("(1)neighbor:(%d, %d), pre_hop: %d, hop: %d\n", vertex, neighbor, ngb_hop, hop);
-
       // produce frontiers for next step
       if(hop < ngb_hop) {
         // frontiers in blk
         vertex = blk_vertex_frontiers[blk_tid];
-        bool filled = vertex == 0;
-        blk_vertex_frontiers[blk_tid] = filled ? neighbor : vertex;
+        blk_vertex_frontiers[blk_tid] = vertex ? vertex : neighbor;
 
         // in global pool
-        if(!filled) {
+        if(vertex) {
           //Todo: write vf to glb memory in batch
           int index = atomicAdd(&vf_num, 1);
           vertex_frontiers[index] = neighbor;
           atomicAdd(&blk_vf_num, 1);
-
+          //printf("blk_tid:(%d, %d), pre_vf_num: %d, pre_blk_vf_num: %d\n",blockIdx.x, blk_tid, vf_num, blk_vf_num);
         }
       }
     }
@@ -162,51 +170,54 @@ __global__ void bfs_hops_fusion_2_o2(int* g_offset, int* g_edges, int node_num, 
     // 2. process the remainding vertex in global task tool
     // assign task from global pool.
     __shared__  int task_offset;
-    if(threadIdx.x == 0) {
-      task_offset = atomicAdd(&block_offset, blk_vf_num);
-      //assert(block_offset <= vf_num);
-    }
-    __syncthreads();
+    if(blk_vf_num) {
 
-    // process vertex;
-    int it_time = blk_vf_num >> 8;// blk_vf_num / BLOCK_MAX_SIZE;
-    int blk_vf_num_rmd = blk_vf_num & 0xFF; // % BLOCK_MAX_SIZE;
-
-    for(int i = 0; i < it_time; i++) {
-      vertex = vertex_frontiers[task_offset+i*BLOCK_MAX_SIZE+blk_tid];
-      blk_vertexs[blk_tid] = vertex;
-      start = g_offset[vertex];
-      end = g_offset[vertex+1];
-      neighbors_num[0] = end - start;
-      blk_start_offset[blk_tid] = start;
-      DEBUG_PRINT("(2.2)vertex: %d, ngh_nums: %d\n", vertex, neighbors_num[0]);
-
-      BlockScan(temp_storage).ExclusiveSum(neighbors_num, neighbors_num, total_edges_per_block);
-      blk_degrees[blk_tid] = neighbors_num[0];
-      __syncthreads();
-
-      CUDA_DEBUG_BLK(blk_tid, "(2.2)total edges: %d\n", total_edges_per_block);
-      for(int j = blk_tid; j < total_edges_per_block; j += block_size){
-        auto it = thrust::upper_bound(thrust::seq, blk_degrees, blk_degrees+input_num_reg, j);
-        int idx = thrust::distance(blk_degrees, it) - 1;
-
-        vertex = blk_vertexs[idx];
-        start = blk_start_offset[idx];
-        int offset_in_ngb_per_vertex = j - blk_degrees[idx];
-        neighbor = g_edges[start+offset_in_ngb_per_vertex];
-
-        ngb_hop = atomicMin(&distance[neighbor], hop);
-        DEBUG_PRINT("(2.2)neighbors(%d, %d), pre_hop: %d, hop: %d\n", vertex, neighbor, ngb_hop, hop);
-        if(hop < ngb_hop) {
-          int index = atomicAdd(output_num, 1);
-          output_frontiers[index] = neighbor;
-        }
+      if(threadIdx.x == 0) {
+        //printf("blk: %d, vf_num: %d, blk_vf_num: %d\n", blockIdx.x, vf_num, blk_vf_num);
+        task_offset = atomicAdd(&block_offset, blk_vf_num);
+        //printf("blk: %d, vf num: %d, blk_vf_num: %d, block offset: %d, task offset: %d\n", blockIdx.x, vf_num, blk_vf_num, block_offset, task_offset);
+        //assert(block_offset <= vf_num);
       }
       __syncthreads();
-    }
+
+      // process vertex;
+      int it_time = blk_vf_num >> 8;// blk_vf_num / BLOCK_MAX_SIZE;
+      int blk_vf_num_rmd = blk_vf_num & 0xFF; // % BLOCK_MAX_SIZE;
+
+      for(int i = 0; i < it_time; i++) {
+        vertex = vertex_frontiers[task_offset+i*BLOCK_MAX_SIZE+blk_tid];
+        blk_vertexs[blk_tid] = vertex;
+        start = g_offset[vertex];
+        end = g_offset[vertex+1];
+        neighbors_num[0] = end - start;
+        blk_start_offset[blk_tid] = start;
+        DEBUG_PRINT("(2.2)vertex: %d, ngh_nums: %d\n", vertex, neighbors_num[0]);
+
+        BlockScan(temp_storage).ExclusiveSum(neighbors_num, neighbors_num, total_edges_per_block);
+        blk_degrees[blk_tid] = neighbors_num[0];
+        __syncthreads();
+
+        CUDA_DEBUG_BLK(blk_tid, "(2.2)total edges: %d\n", total_edges_per_block);
+        for(int j = blk_tid; j < total_edges_per_block; j += block_size){
+          auto it = thrust::upper_bound(thrust::seq, blk_degrees, blk_degrees+block_size, j);
+          int idx = thrust::distance(blk_degrees, it) - 1;
+
+          vertex = blk_vertexs[idx];
+          start = blk_start_offset[idx];
+          int offset_in_ngb_per_vertex = j - blk_degrees[idx];
+          neighbor = g_edges[start+offset_in_ngb_per_vertex];
+
+          ngb_hop = atomicMin(&distance[neighbor], hop);
+          DEBUG_PRINT("(2.2)neighbors(%d, %d), pre_hop: %d, hop: %d\n", vertex, neighbor, ngb_hop, hop);
+          if(hop < ngb_hop) {
+            int index = atomicAdd(output_num, 1);
+            output_frontiers[index] = neighbor;
+          }
+        }
+        __syncthreads();
+      }
 
     // remainding vertex < blk size
-    if(blk_vf_num_rmd) {
       if(blk_tid < blk_vf_num_rmd) {
         vertex = vertex_frontiers[task_offset+it_time*BLOCK_MAX_SIZE+blk_tid];
         blk_vertexs[blk_tid] = vertex;
@@ -226,7 +237,7 @@ __global__ void bfs_hops_fusion_2_o2(int* g_offset, int* g_edges, int node_num, 
 
       CUDA_DEBUG_BLK(blk_tid, "(2.2r)total edges: %d\n", total_edges_per_block);
       for(int i = blk_tid; i < total_edges_per_block; i += block_size){
-        auto it = thrust::upper_bound(thrust::seq, blk_degrees, blk_degrees+input_num_reg, i);
+        auto it = thrust::upper_bound(thrust::seq, blk_degrees, blk_degrees+blk_vf_num_rmd, i);
         int idx = thrust::distance(blk_degrees, it) - 1;
 
         vertex = blk_vertexs[idx];
@@ -243,11 +254,6 @@ __global__ void bfs_hops_fusion_2_o2(int* g_offset, int* g_edges, int node_num, 
         }
       }
 
-    }
-
-    if(blk_tid == 0) {
-      vf_num = 0;
-      block_offset = 0;
     }
 }
 
@@ -319,14 +325,15 @@ std::vector<int> test_bfs_hops_fusion_o2(std::vector<int> offset, std::vector<in
         // std::cout << "current hop (" << loop << "): queue_in_num (" << queue_in_num << ")\n";
 
         // kernel launch
-
+        // Todo: private the intermediate variable.
+        initial_device_var<<<1, 32>>>();
         bfs_hops_fusion_2_o2<<<blocksPerGrid, threadsPerBlock>>>(d_offset, d_edges, offset.size(), edge_num,
                                                               d_queue_in, queue_in_num,
                                                               d_vertex_frontiers,
                                                               d_queue_out, d_queue_out_num,
                                                               d_hops, next_hop);
 
-        CHECK_CUDA_SYNC("After device synchronize");
+        //CHECK_CUDA_SYNC("After device synchronize");
 
         // copy queue_out_num to host
         cudaMemcpy(&queue_out_num, d_queue_out_num, queue_num_size, cudaMemcpyDeviceToHost);
@@ -338,6 +345,7 @@ std::vector<int> test_bfs_hops_fusion_o2(std::vector<int> offset, std::vector<in
         d_queue_in = d_queue_out;
         d_queue_out = tmp;
         next_hop += 2;
+        //printf("next hop: %d\n", next_hop);
     }
     while(queue_in_num);
 

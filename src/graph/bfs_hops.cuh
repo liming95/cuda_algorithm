@@ -27,10 +27,10 @@
 #if DEBUG_LEVEL >= 1
     #define CUDA_DEBUG_BLK(blk_tid, fmt, ...)                                        \
             if(blk_tid == 0) {                                                       \
-                printf("[CUDA DEBUG IN BLOCK %d] " fmt, blk_tid, ##__VA_ARGS__);     \
+                printf("[CUDA DEBUG IN BLOCK %d] " fmt, blockIdx.x, ##__VA_ARGS__);     \
             }
 #else
-    #define CUDA_DEBUG_BLK(glb_tid, fmt, ...)
+    #define CUDA_DEBUG_BLK(blk_tid, fmt, ...)
 #endif
 
 #if DEBUG_LEVEL >= 1
@@ -81,5 +81,7 @@ std::vector<int> test_bfs_hops_fusion_o1(std::vector<int> offset, std::vector<in
 std::vector<int> test_bfs_hops_async_o1(std::vector<int> offset, std::vector<int> endnodes, int source);
 
 std::vector<int> test_bfs_hops_fusion_o2(std::vector<int> offset, std::vector<int> endnodes, int source);
+
+std::vector<int> test_bfs_hops_async_o2(std::vector<int> offset, std::vector<int> endnodes, int source);
 
 #endif // GRAPH_ALGORITHMS_H

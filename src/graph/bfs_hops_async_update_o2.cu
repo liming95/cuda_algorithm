@@ -20,7 +20,7 @@ inline void calculate_kernel_config(int thread_num, int& block_size, int& grid_s
 
 __device__ int update_frontiers_num;
 
-__global__ void initial_output_bitmap_o1(int* output_bitmap, int* output_num, int bitmap_len){
+__global__ void initial_output_bitmap_o2(int* output_bitmap, int* output_num, int bitmap_len){
     int glb_tid = blockIdx.x * blockDim.x + threadIdx.x;
     CUDA_DEBUG(glb_tid, "Initial Output Bitmap...\n");
     int block_size = blockDim.x;
@@ -33,7 +33,7 @@ __global__ void initial_output_bitmap_o1(int* output_bitmap, int* output_num, in
     if(glb_tid == 0) *output_num = 0;
 }
 
-__global__ void get_output_frontiers_o1(int* g_offset, int* g_edges, int node_num, int edge_num,
+__global__ void get_output_frontiers_o2(int* g_offset, int* g_edges, int node_num, int edge_num,
                                     int* input_bitmap, int nf_num,
                                     int* output_bitmap, int* output_num,
                                     int* status_bitmap, int bitmap_len,
@@ -288,7 +288,7 @@ __global__ void get_output_frontiers_o1(int* g_offset, int* g_edges, int node_nu
 
 }
 
-__global__ void update_node_status_o1(int* input_bitmap, int offset, int nf_num, int* hops, int hop){
+__global__ void update_node_status_o2(int* input_bitmap, int offset, int nf_num, int* hops, int hop){
     int glb_tid = blockIdx.x * blockDim.x + threadIdx.x;
 
     if(glb_tid < nf_num){
@@ -298,7 +298,7 @@ __global__ void update_node_status_o1(int* input_bitmap, int offset, int nf_num,
     }
 }
 
-void bfs_hops_async_o1(std::vector<int> offset, std::vector<int> edges, int node_num, int edge_num,
+void bfs_hops_async_o2(std::vector<int> offset, std::vector<int> edges, int node_num, int edge_num,
                    int source,
                    std::vector<int> &hops){
     int* d_offset, *d_edges;
@@ -372,13 +372,13 @@ void bfs_hops_async_o1(std::vector<int> offset, std::vector<int> edges, int node
         int smem_size = (2 * bitmap_len + ((bitmap_len + blocksPerGrid - 1) / blocksPerGrid) * 32) * sizeof(int);
         //assert(smem_size < 48 * 1024);
 
-        initial_output_bitmap_o1<<<blocksPerGrid_inital, threadsPerBlock_inital>>>(d_output_bitmap, d_output_num, bitmap_len);
+        initial_output_bitmap_o2<<<blocksPerGrid_inital, threadsPerBlock_inital>>>(d_output_bitmap, d_output_num, bitmap_len);
         // cudaError_t err = cudaGetLastError();
         // if (err != cudaSuccess) {
         //     printf("Kernel launch 1 error: %s\n", cudaGetErrorString(err));
         // }
         calculate_kernel_config(nf_num, threadsPerBlock, blocksPerGrid);
-        get_output_frontiers_o1<<<blocksPerGrid, threadsPerBlock, smem_size>>>(d_offset, d_edges, node_num, edge_num,
+        get_output_frontiers_o2<<<blocksPerGrid, threadsPerBlock, smem_size>>>(d_offset, d_edges, node_num, edge_num,
                                                                                 d_input_bitmap, nf_num,
                                                                                 d_output_bitmap, d_output_num,
                                                                                 d_status_bitmap, bitmap_len,
@@ -396,7 +396,7 @@ void bfs_hops_async_o1(std::vector<int> offset, std::vector<int> edges, int node
         // }
 
         calculate_kernel_config(nf_num, threadsPerBlock, blocksPerGrid);
-        update_node_status_o1<<<blocksPerGrid, threadsPerBlock, 0, stream_update>>>(d_update_frontiers, update_offset, nf_num,
+        update_node_status_o2<<<blocksPerGrid, threadsPerBlock, 0, stream_update>>>(d_update_frontiers, update_offset, nf_num,
                                                                    d_hops, cur_hop);
         update_offset += nf_num;
         cur_hop++;
@@ -416,7 +416,7 @@ void bfs_hops_async_o1(std::vector<int> offset, std::vector<int> edges, int node
 
     float milliseconds = 0;
     cudaEventElapsedTime(&milliseconds, start, stop);
-    std::cout << "GPU: bfs_hops_async_o1. Elapsed time :" << milliseconds << " (ms)\n";
+    std::cout << "GPU: bfs_hops_async_o2. Elapsed time :" << milliseconds << " (ms)\n";
 
     cudaFree(d_offset);
     cudaFree(d_edges);
@@ -433,7 +433,7 @@ void bfs_hops_async_o1(std::vector<int> offset, std::vector<int> edges, int node
     cudaEventDestroy(stop);
 }
 
-std::vector<int> test_bfs_hops_async_o1(std::vector<int> offset, std::vector<int> endnodes, int source){
+std::vector<int> test_bfs_hops_async_o2(std::vector<int> offset, std::vector<int> endnodes, int source){
     int node_num = offset.size() - 1;
     int edge_num = endnodes.size();
 
@@ -441,7 +441,7 @@ std::vector<int> test_bfs_hops_async_o1(std::vector<int> offset, std::vector<int
     hops[source] = 0;
     // std::cout << "GPU:" << std::endl;
 
-    bfs_hops_async_o1(offset, endnodes, node_num, edge_num, source, hops);
+    bfs_hops_async_o2(offset, endnodes, node_num, edge_num, source, hops);
 
     //print_hops(source, hops);
     return hops;

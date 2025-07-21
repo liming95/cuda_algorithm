@@ -20,7 +20,7 @@ inline void calculate_kernel_config(int thread_num, int& block_size, int& grid_s
 
 __device__ int update_frontiers_num;
 
-__global__ void initial_output_bitmap_o1(int* output_bitmap, int* output_num, int bitmap_len){
+__global__ void initial_output_bitmap(int* output_bitmap, int* output_num, int bitmap_len){
     int glb_tid = blockIdx.x * blockDim.x + threadIdx.x;
     CUDA_DEBUG(glb_tid, "Initial Output Bitmap...\n");
     int block_size = blockDim.x;
@@ -155,19 +155,17 @@ __global__ void get_output_frontiers_o1(int* g_offset, int* g_edges, int node_nu
 
     __shared__ int blk_degrees[BLOCK_MAX_SIZE];
     __shared__ int blk_start_offset[BLOCK_MAX_SIZE];
-    //block
+
     for(int i = 0; i < it_time ; i++) {
         vertex = blk_input_frontiers[block_size*i+blk_tid];
         start = g_offset[vertex];
         blk_start_offset[blk_tid] = start;
         end = g_offset[vertex+1];
         neighbors_num = end - start;
-        DEBUG_PRINT("(4) BLOCK:blk id: %d, vertex: %d, neighbor num: %d\n", blk_tid, vertex, neighbors_num);
 
         BlockScan(temp_storage).ExclusiveSum(neighbors_num, neighbors_num, total_ngbs);
         blk_degrees[blk_tid] = neighbors_num;
         __syncthreads();
-        CUDA_DEBUG(glb_tid, "(4) BLOCK:total neighbors num: %d\n", total_ngbs);
 
         for(int j = blk_tid; j < total_ngbs; j += block_size){
             auto it = thrust::upper_bound(thrust::seq, blk_degrees, blk_degrees+block_size, j);
@@ -177,7 +175,6 @@ __global__ void get_output_frontiers_o1(int* g_offset, int* g_edges, int node_nu
             start = blk_start_offset[idx];
             int offset_in_ngb_per_vertex = j - blk_degrees[idx];
             neighbor = g_edges[start+offset_in_ngb_per_vertex];
-            DEBUG_PRINT("(4) vertex: %d, neighbor: %d\n", vertex, neighbor);
 
             // mark output bitmap
             GET_BIT_INDEX_OFFSET(neighbor, index_in_bitmap, offset_in_bitmap);
@@ -209,7 +206,7 @@ __global__ void get_output_frontiers_o1(int* g_offset, int* g_edges, int node_nu
     BlockScan(temp_storage).ExclusiveSum(neighbors_num, neighbors_num, total_ngbs);
     blk_degrees[blk_tid] = neighbors_num;
     __syncthreads();
-    CUDA_DEBUG_BLK(blk_tid, "(4)total neighbors num: %d\n", total_ngbs);
+    CUDA_DEBUG(glb_tid, "(4)total neighbors num: %d\n", total_ngbs);
 
     for(int i = blk_tid; i < total_ngbs; i += block_size){
         auto it = thrust::upper_bound(thrust::seq, blk_degrees, blk_degrees+blk_input_frontiers_remaind, i);
@@ -237,53 +234,22 @@ __global__ void get_output_frontiers_o1(int* g_offset, int* g_edges, int node_nu
     __syncthreads();
 
     //5. aggregate the blk output bitmap to output bitmap
-    it_time = bitmap_len / BLOCK_MAX_SIZE;
-    int bitmap_rmd = bitmap_len % BLOCK_MAX_SIZE;
-    int inserted_num;
-    int pre_bitmap;
-    int block_sum;
-    for(int i = 0; i < it_time; i ++){
-        bitmap = blk_output_bitmap[i*BLOCK_MAX_SIZE+blk_tid];
-        pre_bitmap = bitmap == 0 ? 0 : atomicOr(&status_bitmap[i*BLOCK_MAX_SIZE+blk_tid], bitmap);
-        DEBUG_PRINT("blk(%d, %d), pre_bitmap: %x, bitmap: %x\n", blockIdx.x, blk_tid, pre_bitmap, bitmap);
+    for(int i = blk_tid; i < bitmap_len; i += block_size){
+        bitmap = blk_output_bitmap[i];
+        int pre_bitmap = bitmap == 0 ? 0 : atomicOr(&status_bitmap[i], bitmap);
+        pre_bitmap = bitmap == 0 ? 0 : atomicOr(&output_bitmap[i], bitmap);
 
-        pre_bitmap = bitmap == 0 ? 0 : atomicOr(&output_bitmap[i*BLOCK_MAX_SIZE+blk_tid], bitmap);
         pre_bitmap ^= bitmap;
         bitmap &= pre_bitmap;
-        inserted_num = __popc(bitmap);
-        block_sum = BlockReduce(temp_storage2).Sum(inserted_num);
-        __syncthreads();
+        int inserted_num = __popc(bitmap);
+        int block_sum = BlockReduce(temp_storage2).Sum(inserted_num);
+
         if(blk_tid == 0) {
             blk_output_num += block_sum;
         }
-        DEBUG_PRINT("blk(%d, %d) pre_bitmap: %x, bitmap: %x, inserted_num: %d, block_sum: %d\n", blockIdx.x, blk_tid, pre_bitmap, bitmap, inserted_num, block_sum);
     }
-
-    if(blk_tid < bitmap_rmd){
-        bitmap = blk_output_bitmap[it_time*BLOCK_MAX_SIZE+blk_tid];
-        pre_bitmap = bitmap == 0 ? 0 : atomicOr(&status_bitmap[it_time*BLOCK_MAX_SIZE+blk_tid], bitmap);
-        DEBUG_PRINT("rmd.blk(%d, %d), pre_bitmap: %x, bitmap: %x\n", blockIdx.x, blk_tid, pre_bitmap, bitmap);
-
-        pre_bitmap = bitmap == 0 ? 0 : atomicOr(&output_bitmap[it_time*BLOCK_MAX_SIZE+blk_tid], bitmap);
-        pre_bitmap ^= bitmap;
-        bitmap &= pre_bitmap;
-        inserted_num = __popc(bitmap);
-    }
-    else {
-        inserted_num = 0;
-    }
-
-    block_sum = BlockReduce(temp_storage2).Sum(inserted_num);
-    __syncthreads();
     if(blk_tid == 0) {
-        blk_output_num += block_sum;
-    }
-    DEBUG_PRINT("rmd. blk(%d, %d) pre_bitmap: %x, bitmap: %x, inserted_num: %d, block_sum: %d\n", blockIdx.x, blk_tid, pre_bitmap, bitmap, inserted_num, block_sum);
-
-    if(blk_tid == 0) {
-        CUDA_DEBUG_BLK(blk_tid, "output_num: %d, blk_output_num: %d\n", *output_num, blk_output_num);
         atomicAdd(output_num, blk_output_num);
-
     }
 
 }
@@ -293,7 +259,7 @@ __global__ void update_node_status_o1(int* input_bitmap, int offset, int nf_num,
 
     if(glb_tid < nf_num){
         int node = input_bitmap[offset+glb_tid];
-        DEBUG_PRINT("offset: %d, node: %d, pre_hop: %d, hop: %d\n", offset+glb_tid, node, hops[node], hop);
+        //printf("node: %d, hop: %d\n", node, hops[node]);
         hops[node] = hop;
     }
 }
@@ -358,27 +324,24 @@ void bfs_hops_async_o1(std::vector<int> offset, std::vector<int> edges, int node
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
 
-    int sum = 0, level = 0;
+    //int sum = 0;
     int threadsPerBlock, blocksPerGrid;
     int cur_hop = 0;
     int nf_num = 1;
     calculate_kernel_config(nf_num, threadsPerBlock, blocksPerGrid);
     cudaEventRecord(start, 0);
-    int threadsPerBlock_up = ((bitmap_len + WARP_SIZE - 1) / WARP_SIZE) * WARP_SIZE;
-    int threadsPerBlock_inital = bitmap_len > BLOCK_MAX_SIZE ? BLOCK_MAX_SIZE : threadsPerBlock_up;
-    int blocksPerGrid_inital = (bitmap_len + BLOCK_MAX_SIZE - 1) / BLOCK_MAX_SIZE;
 
-    while(nf_num && update_offset < 1500){
+    while(nf_num){
+        //sum += nf_num;
         int smem_size = (2 * bitmap_len + ((bitmap_len + blocksPerGrid - 1) / blocksPerGrid) * 32) * sizeof(int);
         //assert(smem_size < 48 * 1024);
 
-        initial_output_bitmap_o1<<<blocksPerGrid_inital, threadsPerBlock_inital>>>(d_output_bitmap, d_output_num, bitmap_len);
+        initial_output_bitmap<<<blocksPerGrid, threadsPerBlock, 0, stream_traversal>>>(d_output_bitmap, d_output_num, bitmap_len);
         // cudaError_t err = cudaGetLastError();
         // if (err != cudaSuccess) {
         //     printf("Kernel launch 1 error: %s\n", cudaGetErrorString(err));
         // }
-        calculate_kernel_config(nf_num, threadsPerBlock, blocksPerGrid);
-        get_output_frontiers_o1<<<blocksPerGrid, threadsPerBlock, smem_size>>>(d_offset, d_edges, node_num, edge_num,
+        get_output_frontiers_o1<<<blocksPerGrid, threadsPerBlock, smem_size, stream_traversal>>>(d_offset, d_edges, node_num, edge_num,
                                                                                 d_input_bitmap, nf_num,
                                                                                 d_output_bitmap, d_output_num,
                                                                                 d_status_bitmap, bitmap_len,
@@ -392,7 +355,6 @@ void bfs_hops_async_o1(std::vector<int> offset, std::vector<int> edges, int node
         // err = cudaDeviceSynchronize();
         // if (err != cudaSuccess) {
         //     printf("CUDA error: %s\n", cudaGetErrorString(err));
-        //     //return;
         // }
 
         calculate_kernel_config(nf_num, threadsPerBlock, blocksPerGrid);
@@ -402,7 +364,7 @@ void bfs_hops_async_o1(std::vector<int> offset, std::vector<int> edges, int node
         cur_hop++;
 
         nf_num = output_num;
-        DEBUG_PRINT("level: %d, output_num: %d\n", ++level, nf_num);
+        DEBUG_PRINT("output_num: %d\n", nf_num);
         int* tmp = d_input_bitmap;
         d_input_bitmap = d_output_bitmap;
         d_output_bitmap = tmp;
