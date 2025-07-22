@@ -25,7 +25,8 @@ __global__ void computeHops_gpu(int* queue_in, int* queue_out, int* offset, int*
             if(end_hop == INVAILD) {
                 queue_index = atomicAdd(queue_out_num, 1);
                 queue_out[queue_index] = end_node;
-                //printf("end_node: %d\n", end_node);
+                // if(end_node >= 32 * 256)
+                //     printf("end_node: %d\n", end_node);
             }
         }
         //printf("\n");

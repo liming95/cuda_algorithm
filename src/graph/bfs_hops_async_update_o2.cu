@@ -29,6 +29,9 @@ __global__ void initial_output_bitmap_o2(int* output_num, int update_num){
 
 }
 
+#define PARA_BLK_OUTPUT_SIZE 8*BLOCK_MAX_SIZE
+#define BITMAP_TIME 5
+#define PARA_BLK_BITMAP_SIZE BLOCK_MAX_SIZE*BITMAP_TIME
 __global__ void get_output_frontiers_o2(int* g_offset, int* g_edges, int node_num, int edge_num,
                                     int* input_frontiers, int input_num,
                                     int* output_frontiers, int* output_num,
@@ -45,14 +48,15 @@ __global__ void get_output_frontiers_o2(int* g_offset, int* g_edges, int node_nu
     typedef cub::BlockScan<int, BLOCK_MAX_SIZE> BlockScan;
     __shared__ typename BlockScan::TempStorage temp_storage;
     //__shared__ typename BlockReduce::TempStorage temp_storage2;
-    __shared__ int blk_output_bitmap[BLOCK_MAX_SIZE];
+    __shared__ int blk_output_bitmap[PARA_BLK_BITMAP_SIZE];
     __shared__ int blk_input_frontiers[BLOCK_MAX_SIZE];
 
     // 1. load input vertex & initial
     if(glb_tid < input_num) {
         blk_input_frontiers[blk_tid] = input_frontiers[glb_tid];
     }
-    blk_output_bitmap[blk_tid] = 0;
+    for(int i = 0; i < BITMAP_TIME; i++)
+        blk_output_bitmap[i*BLOCK_MAX_SIZE+blk_tid] = 0;
 
     // 2.travel and update blk_output_bitmap
     int bitmap;
@@ -97,7 +101,7 @@ __global__ void get_output_frontiers_o2(int* g_offset, int* g_edges, int node_nu
         int first_tid = __ffs(thread_mask) - 1;
         int warp_or = __reduce_or_sync(thread_mask, bitmask);
         if(blk_tid % 32 == first_tid){
-            if(index_in_bitmap < BLOCK_MAX_SIZE) {
+            if(index_in_bitmap < PARA_BLK_BITMAP_SIZE) {
                 atomicOr(&blk_output_bitmap[index_in_bitmap], warp_or);
                 warp_or = 0;
             }
@@ -108,7 +112,10 @@ __global__ void get_output_frontiers_o2(int* g_offset, int* g_edges, int node_nu
             }
         }
         warp_or = __shfl_sync(thread_mask, warp_or, first_tid);
-        if(warp_or & bitmask) {
+        thread_mask = __match_any_sync(__activemask(), neighbor);
+        first_tid = __ffs(thread_mask) - 1;
+        // eliminate repeated element
+        if((blk_tid % 32 == first_tid) && (warp_or & bitmask)) {
             // Todo: write by batch
             int index = atomicAdd(output_num, 1);
             output_frontiers[index] = neighbor;
@@ -119,7 +126,7 @@ __global__ void get_output_frontiers_o2(int* g_offset, int* g_edges, int node_nu
     __syncthreads();
 
     // 3. aggregate the blk output bitmap to output bitmap
-    int it_time = BLOCK_MAX_SIZE / BLOCK_MAX_SIZE;
+    // int it_time = BLOCK_MAX_SIZE / BLOCK_MAX_SIZE;
 
     int inserted_num;
     int inserted_offset; //prefix sum
@@ -128,9 +135,9 @@ __global__ void get_output_frontiers_o2(int* g_offset, int* g_edges, int node_nu
     int blk_output_num = 0;
     int bitmap_idx;
     //__shared__ int thread_output_num[BLOCK_MAX_SIZE];
-    __shared__ int blk_output_frontiers[BLOCK_MAX_SIZE];
+    __shared__ int blk_output_frontiers[PARA_BLK_OUTPUT_SIZE];
 
-    for(int i = 0; i < it_time; i ++){
+    for(int i = 0; i < BITMAP_TIME; i ++){
         bitmap_idx = i * BLOCK_MAX_SIZE + blk_tid;
         bitmap = blk_output_bitmap[bitmap_idx];
         pre_bitmap = bitmap == 0 ? 0 : atomicOr(&status_bitmap[bitmap_idx], bitmap);
@@ -151,7 +158,7 @@ __global__ void get_output_frontiers_o2(int* g_offset, int* g_edges, int node_nu
             pos = __ffs(bitmap) - 1;
             pos = bitmap_idx * 32 + pos;
 
-            if(output_offset < BLOCK_MAX_SIZE) blk_output_frontiers[output_offset] = pos;
+            if(output_offset < PARA_BLK_OUTPUT_SIZE) blk_output_frontiers[output_offset] = pos;
             else {
                 int index = atomicAdd(output_num, 1);
                 output_frontiers[index] = pos;
@@ -163,7 +170,7 @@ __global__ void get_output_frontiers_o2(int* g_offset, int* g_edges, int node_nu
         }
 
         blk_output_num += block_sum;
-        blk_output_num = blk_output_num > BLOCK_MAX_SIZE ? BLOCK_MAX_SIZE : blk_output_num;
+        blk_output_num = blk_output_num > PARA_BLK_OUTPUT_SIZE ? PARA_BLK_OUTPUT_SIZE : blk_output_num;
         DEBUG_PRINT("(3.3) blk(%d, %d) pre_bitmap: %x, bitmap: %x, inserted_num: %d, block_sum: %d\n", blockIdx.x, blk_tid, pre_bitmap, bitmap, inserted_num, block_sum);
 
 

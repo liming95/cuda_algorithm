@@ -1,4 +1,5 @@
 #Todo List
 1.async update o1 has some problem, but it can't be triggered. The erro version has been stored in xxx.err.
 2.Debug system paramilization
+3.When vertex = 10000, fusion o1 has problem.
 
