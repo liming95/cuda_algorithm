@@ -35,8 +35,9 @@ int main(int argc, char* argv[]) {
     assert(hops_cpu == hops_gpu);
     hops_async = test_bfs_hops_async(offset, edges, source);
     assert(hops_cpu == hops_async);
-    // hops_fusion = test_bfs_hops_fusion(offset, edges, source);
-    // assert(hops_cpu == hops_fusion);
+    hops_fusion = test_bfs_hops_fusion(offset, edges, source);
+    assert(hops_cpu == hops_fusion);
+
     hops_async_2 = test_bfs_hops_async_2(offset, edges, source);
     assert(hops_cpu == hops_async_2);
 
